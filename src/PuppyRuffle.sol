@@ -78,11 +78,13 @@ contract PuppyRaffle is ERC721, Ownable {
     /// @param newPlayers the list of players to enter the raffle
     function enterRaffle(address[] memory newPlayers) public payable {
         require(msg.value == entranceFee * newPlayers.length, "PuppyRaffle: Must send enough to enter raffle");
+        // #bug @todo dos attack
         for (uint256 i = 0; i < newPlayers.length; i++) {
             players.push(newPlayers[i]);
         }
 
         // Check for duplicates
+        // #bug @todo dos attack
         for (uint256 i = 0; i < players.length - 1; i++) {
             for (uint256 j = i + 1; j < players.length; j++) {
                 require(players[i] != players[j], "PuppyRaffle: Duplicate player");
@@ -98,16 +100,19 @@ contract PuppyRaffle is ERC721, Ownable {
         require(playerAddress == msg.sender, "PuppyRaffle: Only the player can refund");
         require(playerAddress != address(0), "PuppyRaffle: Player already refunded, or is not active");
 
-        payable(msg.sender).sendValue(entranceFee);
-
+        // #bug fixed reentrency
         players[playerIndex] = address(0);
         emit RaffleRefunded(playerAddress);
+
+        payable(msg.sender).sendValue(entranceFee);
+
     }
 
     /// @notice a way to get the index in the array
     /// @param player the address of a player in the raffle
     /// @return the index of the player in the array, if they are not active, it returns 0
     function getActivePlayerIndex(address player) external view returns (uint256) {
+        // #bug @todo dos attack
         for (uint256 i = 0; i < players.length; i++) {
             if (players[i] == player) {
                 return i;
@@ -123,6 +128,7 @@ contract PuppyRaffle is ERC721, Ownable {
     /// @dev we reset the active players array after the winner is selected
     /// @dev we send 80% of the funds to the winner, the other 20% goes to the feeAddress
     function selectWinner() external {
+        // #bug timestamcp atack
         require(block.timestamp >= raffleStartTime + raffleDuration, "PuppyRaffle: Raffle not over");
         require(players.length >= 4, "PuppyRaffle: Need at least 4 players");
         uint256 winnerIndex =
@@ -135,7 +141,8 @@ contract PuppyRaffle is ERC721, Ownable {
 
         uint256 tokenId = totalSupply();
 
-        // We use a different RNG calculate from the winnerIndex to determine rarity
+        // #bug We use a different RNG calculate from the winnerIndex to determine rarity
+        // randomatization attack becuase not using decentralize randomnoess like chanlink
         uint256 rarity = uint256(keccak256(abi.encodePacked(msg.sender, block.difficulty))) % 100;
         if (rarity <= COMMON_RARITY) {
             tokenIdToRarity[tokenId] = COMMON_RARITY;
@@ -155,6 +162,7 @@ contract PuppyRaffle is ERC721, Ownable {
 
     /// @notice this function will withdraw the fees to the feeAddress
     function withdrawFees() external {
+        // #bug becuase the check addres and attacker send eth and changed the balanace of contract
         require(address(this).balance == uint256(totalFees), "PuppyRaffle: There are currently players active!");
         uint256 feesToWithdraw = totalFees;
         totalFees = 0;
@@ -171,6 +179,7 @@ contract PuppyRaffle is ERC721, Ownable {
 
     /// @notice this function will return true if the msg.sender is an active player
     function _isActivePlayer() internal view returns (bool) {
+        // #bug @todo dos attack
         for (uint256 i = 0; i < players.length; i++) {
             if (players[i] == msg.sender) {
                 return true;
